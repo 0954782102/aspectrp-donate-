@@ -29,52 +29,65 @@ const App: React.FC = () => {
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   
   const introAudioRef = useRef<HTMLAudioElement | null>(null);
-  const paypalScriptLoaded = useRef(false);
+  const paypalScriptInjected = useRef(false);
 
   const asCoins = amountUah ? Math.floor(Number(amountUah) * CONVERSION_RATE) : 0;
   const amountUsd = amountUah ? (Number(amountUah) / UAH_TO_USD).toFixed(2) : "0.00";
 
-  // Динамічне завантаження PayPal SDK для уникнення помилки 'window host'
+  // PayPal Dynamic Amount Loader
   useEffect(() => {
-    if (showModal === DonationStep.PAYMENT && paymentView === 'paypal' && !paypalScriptLoaded.current) {
+    if (showModal === DonationStep.PAYMENT && paymentView === 'paypal' && !paypalScriptInjected.current) {
+      setIsPaypalLoading(true);
       const script = document.createElement('script');
-      script.src = "https://www.paypal.com/sdk/js?client-id=BAAazVFq-vV3T9mfV87J1p-VKd8-lGoxHvCSmbNENHUbI_gML7_jqBkZAKjWULxFtTQvX5D2vZ5KUpI6y0&components=hosted-buttons&disable-funding=venmo&currency=USD";
+      // Використовуємо стандартний SDK замість hosted-buttons для динамічної суми
+      script.src = "https://www.paypal.com/sdk/js?client-id=BAAazVFq-vV3T9mfV87J1p-VKd8-lGoxHvCSmbNENHUbI_gML7_jqBkZAKjWULxFtTQvX5D2vZ5KUpI6y0&currency=USD&disable-funding=venmo";
       script.async = true;
       script.onload = () => {
-        paypalScriptLoaded.current = true;
-        renderPaypalButtons();
+        paypalScriptInjected.current = true;
+        renderDynamicPaypal();
       };
-      script.onerror = () => {
-        console.error("Failed to load PayPal SDK");
-        setIsPaypalLoading(false);
-      };
+      script.onerror = () => setIsPaypalLoading(false);
       document.body.appendChild(script);
     } else if (showModal === DonationStep.PAYMENT && paymentView === 'paypal') {
-      renderPaypalButtons();
+      renderDynamicPaypal();
     }
-  }, [showModal, paymentView]);
+  }, [showModal, paymentView, amountUsd]);
 
-  const renderPaypalButtons = () => {
+  const renderDynamicPaypal = () => {
     setIsPaypalLoading(true);
     const checkPaypal = setInterval(() => {
       const paypal = (window as any).paypal;
-      if (paypal && paypal.HostedButtons) {
+      if (paypal && paypal.Buttons) {
         clearInterval(checkPaypal);
-        const container = document.getElementById("paypal-container-RE425JCZ8AWXY");
+        const container = document.getElementById("paypal-button-container");
         if (container) {
           container.innerHTML = "";
           try {
-            paypal.HostedButtons({
-              hostedButtonId: "RE425JCZ8AWXY",
-              onApprove: (data: any) => {
-                setIsPaypalVerified(true);
-                playSound('success');
+            paypal.Buttons({
+              createOrder: (data: any, actions: any) => {
+                return actions.order.create({
+                  purchase_units: [{
+                    amount: {
+                      value: amountUsd
+                    },
+                    description: `Aspect RP Donation: ${nickname} (${asCoins} AS Coins)`
+                  }]
+                });
+              },
+              onApprove: (data: any, actions: any) => {
+                return actions.order.capture().then((details: any) => {
+                  setIsPaypalVerified(true);
+                  playSound('success');
+                });
+              },
+              onCancel: () => playSound('error'),
+              onError: (err: any) => {
+                console.error("PayPal Error", err);
+                setIsPaypalLoading(false);
               }
-            }).render("#paypal-container-RE425JCZ8AWXY")
-            .then(() => setIsPaypalLoading(false))
-            .catch(() => setIsPaypalLoading(false));
+            }).render("#paypal-button-container")
+            .then(() => setIsPaypalLoading(false));
           } catch (e) {
-            console.error("PayPal render error", e);
             setIsPaypalLoading(false);
           }
         }
@@ -86,8 +99,7 @@ const App: React.FC = () => {
     setIntroStarted(true);
     if (introAudioRef.current) {
       introAudioRef.current.play().catch(err => {
-        console.warn("Autoplay failed or audio not found. Skipping to site.", err);
-        handleIntroEnd();
+        console.warn("Autoplay blocked. Pressing skip if needed.", err);
       });
     }
   };
@@ -100,7 +112,6 @@ const App: React.FC = () => {
           return prev;
         });
       }, 5500); 
-
       return () => clearInterval(interval);
     }
   }, [introStarted]);
@@ -156,9 +167,7 @@ const App: React.FC = () => {
           ref={introAudioRef} 
           src={INTRO_AUDIO_PATH} 
           onEnded={handleIntroEnd}
-          onError={(e) => {
-            console.error("Audio file not found or unsupported format", e);
-          }}
+          onError={() => console.warn("Audio file missing")}
         />
         
         {!introStarted ? (
@@ -176,14 +185,14 @@ const App: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="w-full max-w-4xl space-y-12 text-center">
+          <div className="w-full max-w-4xl space-y-12 text-center flex flex-col items-center justify-center">
              <div className="flex justify-center gap-2 mb-20">
                {INTRO_TEXT_PARTS.map((_, i) => (
                  <div key={i} className={`h-1 rounded-full transition-all duration-1000 ${i <= currentIntroPart ? 'w-12 bg-red-600' : 'w-4 bg-white/10'}`}></div>
                ))}
              </div>
              
-             <div className="min-h-[300px] flex items-center justify-center relative">
+             <div className="min-h-[300px] w-full flex items-center justify-center relative">
                {INTRO_TEXT_PARTS.map((text, i) => (
                  i === currentIntroPart && (
                    <p key={i} className="absolute inset-0 text-2xl md:text-4xl font-black text-white italic uppercase tracking-tighter leading-tight fade-in-text">
@@ -299,8 +308,8 @@ const App: React.FC = () => {
                 
                 <div className="flex-1 flex flex-col items-center justify-center w-full">
                     {paymentView === 'methods' ? (
-                        <div className="w-full max-w-md space-y-8 animate-slide-up">
-                            <h3 className="text-3xl font-black italic uppercase text-center text-white tracking-tighter">Шлюз оплати</h3>
+                        <div className="w-full max-w-md space-y-8 animate-slide-up text-center">
+                            <h3 className="text-3xl font-black italic uppercase text-white tracking-tighter">Шлюз оплати</h3>
                             <div className="grid grid-cols-1 gap-4">
                                 <button onClick={() => { setPaymentView('ua_bank'); playSound('click'); }} className="p-8 evolve-panel bg-red-600/10 border-red-600/20 hover:bg-red-600 transition-all flex items-center gap-6 group">
                                     <span className="text-5xl">🇺🇦</span>
@@ -321,40 +330,51 @@ const App: React.FC = () => {
                     ) : paymentView === 'paypal' ? (
                         <div className="w-full max-w-lg space-y-6 flex flex-col items-center animate-slide-up">
                             <div className="text-center w-full">
-                                <h4 className="text-2xl font-black text-white italic uppercase mb-2 tracking-tighter">PayPal Gateway</h4>
-                                <p className="text-[11px] text-gray-500 uppercase font-bold tracking-widest mb-6">До сплати: ${amountUsd} USD</p>
+                                <h4 className="text-2xl font-black text-white italic uppercase mb-2 tracking-tighter">PayPal Dynamic</h4>
+                                <p className="text-[11px] text-gray-500 uppercase font-bold tracking-widest mb-6 italic">Сайт автоматично передав суму: ${amountUsd} USD</p>
                             </div>
                             
-                            <div className="w-full flex-1 flex flex-col items-center justify-center min-h-[300px] relative bg-black/20 rounded-[2rem] p-8 border border-white/5 overflow-hidden">
+                            <div className="w-full flex-1 flex flex-col items-center justify-center min-h-[300px] relative bg-black/20 rounded-[2rem] p-8 border border-white/5">
                                 {isPaypalLoading && (
-                                  <div className="flex flex-col items-center gap-4">
-                                    <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full"></div>
-                                    <p className="text-[10px] text-blue-500 font-bold uppercase tracking-widest">Ініціалізація SDK...</p>
-                                  </div>
+                                    <div className="flex flex-col items-center gap-4">
+                                        <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                                        <p className="text-[10px] text-blue-500 font-bold uppercase">Ініціалізація кнопок...</p>
+                                    </div>
                                 )}
                                 {isPaypalVerified ? (
                                     <div className="text-center p-8 bg-green-500/10 border border-green-500/20 rounded-[2rem] w-full animate-slide-up">
                                         <span className="text-5xl block mb-4">✅</span>
-                                        <h5 className="text-lg font-black text-green-500 uppercase italic">Оплата успішна!</h5>
-                                        <p className="text-[10px] text-gray-400 mt-2 uppercase">Натисніть кнопку "Я ОПЛАТИВ" праворуч.</p>
+                                        <h5 className="text-lg font-black text-green-500 uppercase italic">Транзакція успішна!</h5>
+                                        <p className="text-[10px] text-gray-400 mt-2 uppercase">Натисніть кнопку "Я ОПЛАТИВ" праворуч для завершення.</p>
                                     </div>
                                 ) : (
-                                    <div id="paypal-container-RE425JCZ8AWXY" className="w-full"></div>
+                                    <div id="paypal-button-container" className="w-full"></div>
                                 )}
                             </div>
                         </div>
                     ) : (
                         <div className="w-full max-w-lg space-y-8 flex flex-col items-center animate-slide-up">
-                            <h4 className="text-3xl font-black text-white italic uppercase tracking-tighter">Sense Bank</h4>
+                            <h4 className="text-3xl font-black text-white italic uppercase tracking-tighter">Sense Bank (UA)</h4>
+                            
+                            <div className="bg-red-600/10 border border-red-600/20 p-6 rounded-2xl w-full text-center">
+                                <p className="text-xs font-bold text-white uppercase italic mb-2">⚠️ Важлива інструкція</p>
+                                <p className="text-[10px] text-gray-400 uppercase leading-relaxed">
+                                    Вас буде перенаправлено на сторінку Sense Bank. <br/>
+                                    Будь ласка, вкажіть там <b>ТОЧНУ СУМУ</b>, яку ви вказали на нашому сайті: 
+                                    <span className="block text-xl text-red-500 font-black mt-2">{amountUah} UAH</span>
+                                </p>
+                            </div>
+
                             <div className="bg-white p-6 rounded-[2.5rem] shadow-2xl">
                                 <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(SENSE_BANK_LINK)}`} className="w-48 h-48" alt="QR" />
                             </div>
+
                             <div className="w-full space-y-4">
-                                <a href={SENSE_BANK_LINK} target="_blank" className="block w-full text-center bg-red-600 py-4 rounded-2xl text-xs font-black uppercase tracking-widest text-white shadow-lg">Відкрити Sense Bank</a>
+                                <a href={SENSE_BANK_LINK} target="_blank" className="block w-full text-center bg-red-600 py-4 rounded-2xl text-xs font-black uppercase tracking-widest text-white shadow-lg active:scale-95">Відкрити Sense Bank</a>
                                 <div className="p-6 bg-white/5 rounded-2xl border border-white/10 space-y-4 text-left">
-                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">Додати квитанцію:</label>
+                                    <label className="block text-[10px] font-black uppercase tracking-widest text-gray-400">Додати квитанцію (фото):</label>
                                     <input type="file" accept="image/*" onChange={onFileChange} className="w-full text-[10px] text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-black file:bg-white/10 file:text-white" />
-                                    {receiptFile && <p className="text-[10px] text-green-500 font-bold">✅ Квитанція готова до перевірки</p>}
+                                    {receiptFile && <p className="text-[10px] text-green-500 font-bold">✅ Квитанцію вибрано</p>}
                                 </div>
                             </div>
                         </div>
@@ -364,11 +384,11 @@ const App: React.FC = () => {
 
             <div className="w-full lg:w-[360px] bg-black/80 p-8 lg:p-12 flex flex-col border-l border-white/5 shrink-0">
                 <div className="space-y-12 text-white flex-1">
-                    <h5 className="text-[11px] font-black uppercase tracking-[0.3em] text-gray-600 italic border-b border-white/5 pb-6 leading-none">Підсумок замовлення</h5>
+                    <h5 className="text-[11px] font-black uppercase tracking-[0.3em] text-gray-600 italic border-b border-white/5 pb-6 leading-none">Деталі рахунку</h5>
                     <div className="space-y-8">
-                        <div className="flex justify-between items-end"><span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Нікнейм:</span><span className="text-lg font-black italic tracking-tighter leading-none">{nickname}</span></div>
-                        <div className="flex justify-between items-end"><span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Валюта:</span><span className="text-3xl text-red-500 font-black italic leading-none">+{asCoins} AS</span></div>
-                        <div className="pt-10 border-t border-white/5 flex justify-between items-end"><span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Сума:</span><span className="text-4xl font-black italic leading-none">{amountUah} ₴</span></div>
+                        <div className="flex justify-between items-end"><span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Нік:</span><span className="text-lg font-black italic tracking-tighter leading-none">{nickname}</span></div>
+                        <div className="flex justify-between items-end"><span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Нарахування:</span><span className="text-3xl text-red-500 font-black italic leading-none">+{asCoins} AS</span></div>
+                        <div className="pt-10 border-t border-white/5 flex justify-between items-end"><span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">До сплати:</span><span className="text-4xl font-black italic leading-none">{amountUah} ₴</span></div>
                     </div>
                 </div>
 
@@ -382,16 +402,16 @@ const App: React.FC = () => {
                         ) : paymentStatus === 'not_paid' ? (
                             <div className="space-y-2">
                                 <span className="text-[10px] font-black uppercase text-red-500 block tracking-widest leading-tight">
-                                    {paymentView === 'paypal' ? "Спершу оплатіть" : "Завантажте чек"}
+                                    {paymentView === 'paypal' ? "Спершу оплатіть" : "Потрібна квитанція"}
                                 </span>
                             </div>
                         ) : isPaypalVerified ? (
-                            <span className="text-[10px] font-black uppercase text-green-500 tracking-[0.2em] block">Підтверджено шлюзом</span>
+                            <span className="text-[10px] font-black uppercase text-green-500 tracking-[0.2em] block">Верифіковано!</span>
                         ) : (
                             <span className="text-[10px] font-black uppercase text-gray-600 tracking-[0.3em] italic">Очікуємо платіж</span>
                         )}
                     </div>
-                    <button onClick={handleVerifyManual} disabled={paymentStatus === 'checking' || paymentStatus === 'success'} className="w-full py-6 rounded-2xl text-[12px] font-black uppercase tracking-[0.4em] bg-white text-black hover:bg-red-600 hover:text-white transition-all active:scale-95">Я оплатив</button>
+                    <button onClick={handleVerifyManual} disabled={paymentStatus === 'checking' || paymentStatus === 'success'} className="w-full py-6 rounded-2xl text-[12px] font-black uppercase tracking-[0.4em] bg-white text-black hover:bg-red-600 hover:text-white transition-all active:scale-95 shadow-xl">Я оплатив</button>
                 </div>
             </div>
           </div>
@@ -400,20 +420,19 @@ const App: React.FC = () => {
 
       {/* Success Modal */}
       {showModal === DonationStep.SUCCESS && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/99 backdrop-blur-3xl animate-in fade-in duration-500">
-          <div className="w-full max-w-lg evolve-panel p-16 text-center border-2 border-green-500/20">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/99 backdrop-blur-3xl animate-in fade-in duration-500 text-center">
+          <div className="w-full max-w-lg evolve-panel p-16 border-2 border-green-500/20 shadow-2xl">
             <div className="w-24 h-24 bg-green-500 rounded-3xl flex items-center justify-center mx-auto mb-10 text-5xl text-white shadow-[0_0_60px_rgba(34,197,94,0.5)] animate-bounce">✓</div>
-            <h2 className="text-5xl font-black uppercase italic mb-6 text-white tracking-tighter leading-none">Успішно!</h2>
+            <h2 className="text-5xl font-black uppercase italic mb-6 text-white tracking-tighter leading-none">Дякуємо!</h2>
             <div className="bg-white/5 p-8 rounded-[2.5rem] border border-white/5 mb-8">
-                <p className="text-gray-500 text-[10px] uppercase tracking-widest mb-2 font-black">Нараховано:</p>
                 <span className="text-green-500 font-black text-5xl italic tracking-tighter leading-none">+{asCoins} AS</span>
             </div>
             <p className="text-gray-400 text-sm mb-12 italic leading-relaxed px-6">
                 {paymentView === 'paypal' 
-                    ? `Кошти автоматично зараховані на ваш рахунок ${nickname}.` 
-                    : `Дякуємо! Квитанцію отримано. Модератори зарахують кошти протягом 10-20 хвилин.`}
+                    ? `Валюта вже на вашому ігровому рахунку ${nickname}.` 
+                    : `Чек отримано. Зарахування протягом 10-20 хвилин.`}
             </p>
-            <button onClick={() => window.location.reload()} className="w-full evolve-button py-6 rounded-2xl text-[12px] text-white tracking-[0.4em] font-black uppercase">На головну</button>
+            <button onClick={() => window.location.reload()} className="w-full evolve-button py-6 rounded-2xl text-[12px] text-white tracking-[0.4em] font-black uppercase shadow-lg">На головну</button>
           </div>
         </div>
       )}
