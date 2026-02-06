@@ -1,0 +1,132 @@
+
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aspect Role Play | Офіційний Донат</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- PayPal SDK з українською локалізацією -->
+    <script src="https://www.paypal.com/sdk/js?client-id=BAAazVFq-vV3T9mfV87J1p-VKd8-lGoxHvCSmbNENHUbI_gML7_jqBkZAKjWULxFtTQvX5D2vZ5KUpI6y0&components=hosted-buttons&disable-funding=venmo&currency=USD&locale=uk_UA"></script>
+
+    <style>
+        :root {
+            --primary-gradient: linear-gradient(90deg, #ff416c 0%, #ff4b2b 100%);
+            --accent-color: #ff4b2b;
+            --bg-dark: #0a0a0d;
+            --panel-bg: rgba(18, 18, 23, 0.95);
+        }
+        
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        html, body, #root {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-dark);
+            color: #ffffff;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        .main-bg {
+            background: linear-gradient(rgba(10, 10, 13, 0.9), rgba(10, 10, 13, 0.98)), url('https://evolve-rp.ru/assets/img/main-bg.jpg');
+            background-size: cover;
+            background-position: center top;
+            background-attachment: fixed;
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+        }
+
+        .evolve-panel {
+            background: var(--panel-bg);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(30px);
+            border-radius: 24px;
+        }
+
+        .evolve-button {
+            background: var(--primary-gradient);
+            box-shadow: 0 4px 20px rgba(255, 75, 43, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: uppercase;
+            font-weight: 900;
+            letter-spacing: 1.5px;
+        }
+
+        .evolve-button:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(255, 75, 43, 0.5);
+            filter: brightness(1.15);
+        }
+
+        .evolve-input {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            transition: all 0.25s ease;
+        }
+
+        .evolve-input:focus {
+            border-color: var(--accent-color);
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: 0 0 20px rgba(255, 75, 43, 0.1);
+            outline: none;
+        }
+
+        .glowing-text {
+            text-shadow: 0 0 20px rgba(255, 75, 43, 0.4);
+        }
+
+        /* КОНТЕЙНЕР PAYPAL - ТЕПЕР ВІН ЗАВЖДИ МАЄ ПРАВИЛЬНИЙ РОЗМІР */
+        #paypal-container-RE425JCZ8AWXY {
+            width: 100% !important;
+            min-height: 200px !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: stretch !important;
+            justify-content: center !important;
+            margin: 20px 0 !important;
+            background: transparent !important;
+        }
+
+        /* Виправлення для кнопок всередині iframe PayPal */
+        #paypal-container-RE425JCZ8AWXY iframe {
+            width: 100% !important;
+            min-width: 100% !important;
+            display: block !important;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-slide-up {
+            animation: slideUp 0.5s ease forwards;
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.40.0",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div class="main-bg"></div>
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
