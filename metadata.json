@@ -1,7 +1,0 @@
-{
-  "name": "Aspect Donate System",
-  "description": "Офіційна система поповнення рахунку для SAMP проекту Aspect Role Play. Конвертуйте UAH в AS Coins та отримуйте бонуси миттєво.",
-  "requestFramePermissions": [
-    "camera"
-  ]
-}
